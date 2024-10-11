@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Simulador de Indicadores</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        input { margin: 10px 0; padding: 8px; width: 100px; }
+        button { padding: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Calculadora Simulador de Indicadores</h1>
+    
+    <h2>Dados de Entrada</h2>
+    <label for="abertura">Abertura (R$):</label>
+    <input type="number" id="abertura" value="100" step="0.01" required>
+    
+    <label for="maximo">Máximo (R$):</label>
+    <input type="number" id="maximo" value="110" step="0.01" required>
+    
+    <label for="minimo">Mínimo (R$):</label>
+    <input type="number" id="minimo" value="90" step="0.01" required>
+    
+    <label for="fechamento">Fechamento (R$):</label>
+    <input type="number" id="fechamento" value="105" step="0.01" required>
+    <br>
+    <label for="historico">Histórico de Preços (separados por vírgula):</label>
+    <input type="text" id="historico" value="100,102,101,104,103,107,106,105,108,110" required>
+    
+    <label for="periodoSMA">Período SMA:</label>
+    <input type="number" id="periodoSMA" value="3" required>
+    
+    <label for="diasRsi">Dias RSI:</label>
+    <input type="number" id="diasRsi" value="14" required>
+    
+    <label for="multiplicadorATR">Multiplicador ATR:</label>
+    <input type="number" id="multiplicadorATR" value="1.5" step="0.1" required>
+    <br>
+    <button onclick="calcularIndicadores()">Calcular</button>
+
+    <h2>Resultados dos Indicadores</h2>
+    <table id="resultados" style="display:none;">
+        <thead>
+            <tr>
+                <th>PIVOT Point (PP)</th>
+                <th>Suporte 1 (S1)</th>
+                <th>Suporte 2 (S2)</th>
+                <th>Resistência 1 (R1)</th>
+                <th>Resistência 2 (R2)</th>
+                <th>SMA</th>
+                <th>RSI</th>
+                <th>Bandas de Bollinger (Superior)</th>
+                <th>Bandas de Bollinger (Inferior)</th>
+                <th>ATR</th>
+                <th>Stop Loss ATR</th>
+            </tr>
+        </thead>
+        <tbody id="tbody-resultados"></tbody>
+    </table>
+
+    <script>
+        function calcularIndicadores() {
+            const abertura = parseFloat(document.getElementById('abertura').value);
+            const maximo = parseFloat(document.getElementById('maximo').value);
+            const minimo = parseFloat(document.getElementById('minimo').value);
+            const fechamento = parseFloat(document.getElementById('fechamento').value);
+            const historico = document.getElementById('historico').value.split(',').map(Number);
+            
+            // Inclui a Abertura no histórico
+            const precos = [abertura, ...historico];
+            
+            const periodoSMA = parseInt(document.getElementById('periodoSMA').value);
+            const diasRsi = parseInt(document.getElementById('diasRsi').value);
+            const multiplicadorATR = parseFloat(document.getElementById('multiplicadorATR').value);
+
+            // Cálculo do PIVOT (incluindo Abertura)
+            const pivotPoint = (abertura + maximo + minimo + fechamento) / 4;
+            const suporte1 = (pivotPoint * 2) - maximo;
+            const suporte2 = pivotPoint - (maximo - minimo);
+            const resistencia1 = (pivotPoint * 2) - minimo;
+            const resistencia2 = pivotPoint + (maximo - minimo);
+
+            // Cálculo da SMA
+            const sma = calcularSMA(precos, periodoSMA);
+
+            // Cálculo do RSI
+            const rsi = calcularRSI(precos, diasRsi);
+
+            // Cálculo das Bandas de Bollinger
+            const desvioPadrao = calcularDesvioPadrao(precos, sma);
+            const bandaSuperior = sma + desvioPadrao;
+            const bandaInferior = sma - desvioPadrao;
+
+            // Cálculo do ATR
+            const atr = (maximo - minimo) / 2; // Exemplo simplificado
+
+            // Cálculo do Stop Loss ATR
+            const stopLossATR = fechamento - (atr * multiplicadorATR);
+
+            const tbody = document.getElementById('tbody-resultados');
+            tbody.innerHTML = ''; // Limpa resultados anteriores
+
+            const row = `
+                <tr>
+                    <td>R$ ${pivotPoint.toFixed(2)}</td>
+                    <td>R$ ${suporte1.toFixed(2)}</td>
+                    <td>R$ ${suporte2.toFixed(2)}</td>
+                    <td>R$ ${resistencia1.toFixed(2)}</td>
+                    <td>R$ ${resistencia2.toFixed(2)}</td>
+                    <td>R$ ${sma.toFixed(2)}</td>
+                    <td>${rsi.toFixed(2)}</td>
+                    <td>R$ ${bandaSuperior.toFixed(2)}</td>
+                    <td>R$ ${bandaInferior.toFixed(2)}</td>
+                    <td>R$ ${atr.toFixed(2)}</td>
+                    <td>R$ ${stopLossATR.toFixed(2)}</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+
+            document.getElementById('resultados').style.display = 'table';
+        }
+
+        function calcularSMA(precos, periodo) {
+            const len = precos.length;
+            if (len < periodo) return 0; // Se não houver dados suficientes
+            const soma = precos.slice(len - periodo).reduce((acc, val) => acc + val, 0);
+            return soma / periodo;
+        }
+
+        function calcularRSI(precos, dias) {
+            const len = precos.length;
+            if (len < dias) return 50; // Se não houver dados suficientes, retorna um valor fixo
+            let ganhos = 0, perdas = 0;
+
+            for (let i = 1; i < dias; i++) {
+                const diferenca = precos[i] - precos[i - 1];
+                if (diferenca > 0) ganhos += diferenca;
+                else perdas -= diferenca; // perdas são negativas
+            }
+
+            const rs = ganhos / (perdas || 1); // Previne divisão por zero
+            return 100 - (100 / (1 + rs));
+        }
+
+        function calcularDesvioPadrao(precos, media) {
+            const variancia = precos.reduce((acc, val) => acc + Math.pow(val - media, 2), 0) / precos.length;
+            return Math.sqrt(variancia);
+        }
+    </script>
+<p><a href="https://monica.im/home/chat/Monica/monica?convId=conv%3Af78a383f-43de-4869-90e7-61c988d506dd">Monica</p>
+</body>
+</html>
